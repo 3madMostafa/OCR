@@ -22,8 +22,9 @@ def extract_text_from_pdf(pdf_path, lang="ara+eng"):
     poppler_path = None
     if platform.system() == "Windows":
         poppler_path = r"C:\poppler\bin"  # Adjust if necessary
-
-    images = convert_from_path(pdf_path, poppler_path=poppler_path)
+    
+    # لا نمرر poppler_path على Linux لأن poppler-utils مثبت من `packages.txt`
+    images = convert_from_path(pdf_path, poppler_path=poppler_path if poppler_path else None)
     text = "\n".join([pytesseract.image_to_string(img, lang=lang) for img in images])
     return text
 
