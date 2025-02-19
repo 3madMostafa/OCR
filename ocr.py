@@ -3,24 +3,31 @@ import pytesseract
 from pdf2image import convert_from_path
 from PIL import Image
 import os
+import platform
+import tempfile
 
-# تحديد مسار Tesseract (غيره حسب نظامك)
-pytesseract.pytesseract.tesseract_cmd = r"C:\Users\youss\Downloads\tesseract-ocr-w64-setup-5.5.0.20241111.exe"  # للويندوز
+# Detect OS and set Tesseract path
+if platform.system() == "Windows":
+    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+elif platform.system() == "Darwin":  # macOS
+    pytesseract.pytesseract.tesseract_cmd = "/usr/local/bin/tesseract"
+# On Linux, Tesseract is typically installed in /usr/bin/tesseract
 
-# دالة لاستخراج النص من الصورة
+# Function to extract text from images
 def extract_text_from_image(image, lang="ara+eng"):
-    text = pytesseract.image_to_string(image, lang=lang)
-    return text
+    return pytesseract.image_to_string(image, lang=lang)
 
-# دالة لاستخراج النص من PDF
+# Function to extract text from PDFs
 def extract_text_from_pdf(pdf_path, lang="ara+eng"):
-    images = convert_from_path(pdf_path)
-    text = ""
-    for img in images:
-        text += pytesseract.image_to_string(img, lang=lang) + "\n"
+    poppler_path = None
+    if platform.system() == "Windows":
+        poppler_path = r"C:\poppler\bin"  # Adjust if necessary
+
+    images = convert_from_path(pdf_path, poppler_path=poppler_path)
+    text = "\n".join([pytesseract.image_to_string(img, lang=lang) for img in images])
     return text
 
-# واجهة Streamlit
+# Streamlit UI
 st.title("📄 OCR Text Extractor (Image & PDF)")
 st.write("Upload an image or a PDF to extract text.")
 
@@ -28,19 +35,19 @@ uploaded_file = st.file_uploader("Upload Image/PDF", type=["png", "jpg", "jpeg",
 
 if uploaded_file:
     file_type = uploaded_file.type
-    if file_type in ["image/png", "image/jpeg", "image/jpg"]:
-        image = Image.open(uploaded_file)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file_type.split("/")[-1]) as temp_file:
+        temp_file.write(uploaded_file.read())
+        temp_path = temp_file.name
+
+    if file_type.startswith("image"):
+        image = Image.open(temp_path)
         st.image(image, caption="Uploaded Image", use_column_width=True)
         extracted_text = extract_text_from_image(image)
     elif file_type == "application/pdf":
-        pdf_path = f"temp_{uploaded_file.name}"
-        with open(pdf_path, "wb") as f:
-            f.write(uploaded_file.read())
-        extracted_text = extract_text_from_pdf(pdf_path)
-        os.remove(pdf_path)
-    else:
-        st.error("Unsupported file format!")
-        extracted_text = None
+        extracted_text = extract_text_from_pdf(temp_path)
+    
+    os.remove(temp_path)
 
     if extracted_text:
         st.subheader("📝 Extracted Text:")
